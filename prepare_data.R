@@ -18,10 +18,13 @@ for (i in 1:dim(data_map)[1]) {
 }
 # 去掉最后一个字符 '/'
 request_data[,'api'] <- substr(request_data[,'api'],start = 1, stop = nchar(request_data[,'api']) -1)
-# 保存数据
-write.csv(file='./data/request.csv', x=request_data, row.names = F)
 
-# 计算response中的timestamp(秒)
+# response
 response_data <- read.csv("data/response.csv",header = TRUE, sep = ",")
+# 根据request.id 去重
+response_data <- response_data[!duplicated(response_data$request.id),]
+# 计算timestamp(秒)
 response_data[,'timestamp'] <- as.numeric(strptime(response_data[,'time'], format="%Y-%m-%dT%H:%M:%S"))
-write.csv(file='./data/response.csv', x=response_data, row.names = F)
+# 根据request.id left.join
+merged_data <- merge(request_data, response_data, by.x="request.id", by.y="request.id", all.x=TRUE)
+write.csv(file='./output/merged_data.csv', x=merged_data, row.names = F)
