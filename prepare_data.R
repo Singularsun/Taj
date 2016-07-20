@@ -1,4 +1,5 @@
 library(data.table)
+reg_data <- read.csv("data/reg_data.csv",header = TRUE, sep = ",")
 request_data <- read.csv("data/request.csv",header = TRUE, sep = ",")
 # 设置为本地时间
 Sys.setenv(TZ='Asia/Shanghai')
@@ -9,12 +10,12 @@ request_data[,'api'] <- tstrsplit(as.character(request_data[,'path']), "?", fixe
 # 分割出的第一部分字符串的最后一个字符若不是 '/' 则添加一个'/', 方便后面正则匹配替换
 request_data[,'api'] <- gsub(pattern = "//", replacement = "/", paste(request_data[,'api'],"/",sep = ""))
 # 不知道java的map在r中怎么使用，暂时用了一个data.frame存储正则规则
-patterns <- c("projects/.*?/", "branches/.*?/", "potential_students/.*?/", "students/.*?/", "guardians/.*?/", "coaches/.*?", "fields/.*?", "course_schedules/.*?", "metrics/.*?") 
-replacements <- c("projects/{projectId}/", "branches/{branchId}/", "potential_students/{potential_student_Id}/", "students/{studentId}/", "guardians/{guardianId}/", "coaches/{coachId}/", "fields/{fieldId}/", "course_schedules/{course_schedule_id}/", "metrics/{metricName}/")
-data_map <- data.frame(patterns, replacements)
+#patterns <- c("projects/.*?/", "branches/.*?/", "potential_students/.*?/", "students/.*?/", "guardians/.*?/", "coaches/.*?", "fields/.*?", "course_schedules/.*?", "metrics/.*?") 
+#replacements <- c("projects/{projectId}/", "branches/{branchId}/", "potential_students/{potential_student_Id}/", "students/{studentId}/", "guardians/{guardianId}/", "coaches/{coachId}/", "fields/{fieldId}/", "course_schedules/{course_schedule_id}/", "metrics/{metricName}/")
+#data_map <- data.frame(patterns, replacements)
 # 正则替换
-for (i in 1:dim(data_map)[1]) {
-  request_data[,'api'] <- gsub(pattern = data_map[,'patterns'][i],replacement = data_map[,'replacements'][i], x = request_data[,'api'])
+for (i in 1:dim(reg_data)[1]) {
+  request_data[,'api'] <- gsub(pattern = reg_data[,'patterns'][i],replacement = reg_data[,'replacements'][i], x = request_data[,'api'])
 }
 # 去掉最后一个字符 '/'
 request_data[,'api'] <- substr(request_data[,'api'],start = 1, stop = nchar(request_data[,'api']) -1)
