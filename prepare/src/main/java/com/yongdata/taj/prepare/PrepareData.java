@@ -3,125 +3,247 @@ package com.yongdata.taj.prepare;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
 
 public class PrepareData {
+    private static Map<String, Element> map = new HashMap<String, Element>();
+    private static Queue<String> queue = new ArrayBlockingQueue<String>(1000);
 
-    private static BufferedWriter requestWriter;
-    private static BufferedWriter responseWriter;
+    private static BufferedWriter writer;
 
     public static void main(String[] args) throws IOException {
         File log = new File(PrepareData.class.getResource("/").getPath() + "../../../data/marble.log");
-        File request = new File(PrepareData.class.getResource("/").getPath() + "../../../data/request.csv");
-        File response = new File(PrepareData.class.getResource("/").getPath() + "../../../data/response.csv");
+        File data = new File(PrepareData.class.getResource("/").getPath() + "../../../data/src_data.csv");
         if (!log.exists()) {
             System.err.println("File marble.log does not exist.");
             return;
         }
-        FileReader fileReader = new FileReader(log);
-        BufferedReader reader = new BufferedReader(fileReader);
-        FileWriter requestFileWriter = new FileWriter(request);
-        requestWriter = new BufferedWriter(requestFileWriter);
-        FileWriter responseFileWriter = new FileWriter(response);
-        responseWriter = new BufferedWriter(responseFileWriter);
-        requestWriter.write("time,request.id,method,path,remote.ip,host,x.forwarded.for,connection,content.length,user.agent,content.type,accept,referer,cookie,origin,accept.encoding,accept.language,upgrade.insecure.requests\n");
-        responseWriter.write("time,request.id,remote.ip.address,remote.ip.chain.address,process.interval,http.status.code,x.marble.request.id,content.type,content.length,data,connection,cache.control,set.cookie,pragma,expires\n");
-
-        String temp = reader.readLine();
-        Map<String, String> map = new HashMap<String, String>();
+        FileInputStream fileInputStream = new FileInputStream(log);
+        StringBuilder buffer = new StringBuilder();
+        byte[] bytes = new byte[4096];
+        int length = 0;
         try {
-            while (temp != null) {
-                if (temp.equals(".")) {
-                    convertData(map);
-                    map = new HashMap<String, String>();
-                } else {
-                    if (temp.equals("")) {
-                        return;
-                    }
-                    if (temp.length() < 11
-                            || !temp.substring(1, 11).matches("^(\\d{4})-(\\d{2})-(\\d{2})$")) {
-                        String[] pair = temp.split(":");
-                        map.put(pair[0], temp.substring(temp.indexOf(":") + 1));
-                    } else {
-                        map.put("time", temp.substring(1, 25));
-                        int index = temp.indexOf("RequestId");
-                        map.put("requestId", temp.substring(index + 10, index + 46));
-                        if (temp.contains("Starts processing")) {
-                            int index1 = temp.indexOf("Starts processing");
-                            String[] pair = temp.substring(index1 + 27).split(" ");
-                            map.put("method", pair[0]);
-                            map.put("path", pair[1]);
-                        } else if (temp.contains("Remote IP Address")) {
-                            int index2 = temp.indexOf("Remote IP Address");
-                            map.put("remote-ip-address", temp.substring(index2 + 18, temp.length() - 1));
-                        } else if (temp.contains("Remote IP Chain Address")) {
-                            int index3 = temp.indexOf("Remote IP Chain Address");
-                            map.put("remote-ip-chain-address", temp.substring(index3 + 24, temp.length() - 1));
-                        }
-                    }
-                }
-                temp = reader.readLine();
+            while (length != -1) {
+                buffer.append(new String(bytes, 0, length));
+                length = fileInputStream.read(bytes);
             }
         } finally {
-            requestWriter.flush();
-            requestFileWriter.close();
-            requestFileWriter.close();
-            responseWriter.flush();
-            responseWriter.close();
-            responseFileWriter.close();
-            reader.close();
-            fileReader.close();
+            fileInputStream.close();
+        }
+        FileWriter fileWriter = new FileWriter(data);
+        writer = new BufferedWriter(fileWriter);
+        writer.write("request.id,req.time,method,path,remote.ip,host,x.forwarded.for,req.connection,req.content.length," +
+                             "user.agent,req.content.type,accept,referer,cookie,origin,accept.encoding,accept.language," +
+                             "upgrade.insecure.requests,dnt,if.modified.since,remote.ip.address,remote.ip.chain.address," +
+                             "rsp.time,process.interval,http.status.code,rsp.content.type,rsp.content.length,date," +
+                             "rsp.connection,cache.control,set.cookie,accept.charset,pragma,expires,last.modified,location\n");
+
+        String[] lines = buffer.toString().split("\n");
+        StringBuffer document = new StringBuffer();
+        try {
+            for (String line : lines) {
+                if (line == null) {
+                    continue;
+                }
+                if (line.length() >= 11 && line.substring(1, 11).matches("^(\\d{4})-(\\d{2})-(\\d{2})$")) {
+                    addDocument(document.toString());
+                    document = new StringBuffer();
+                }
+                document.append(line + "\n");
+            }
+            for (Map.Entry<String, Element> entry : map.entrySet()) {
+                writer.write(entry.getKey() + ',' + entry.getValue().toString());
+            }
+        } finally {
+            writer.flush();
+            writer.close();
+            fileWriter.close();
         }
     }
 
-    private static void convertData(Map<String, String> document) throws IOException {
-        if (document.containsKey("method")) {
-            StringBuffer buffer = new StringBuffer();
-            buffer.append(escape(document.get("time")));
-            buffer.append("," + escape(document.get("requestId")));
-            buffer.append("," + escape(document.get("method")));
-            buffer.append("," + escape(document.get("path")));
-            buffer.append("," + escape(document.get("remoteip")));
-            buffer.append("," + escape(document.get("host")));
-            buffer.append("," + escape(document.get("x-forwarded-for")));
-            buffer.append("," + escape(document.get("connection")));
-            buffer.append("," + escape(document.get("content-length")));
-            buffer.append("," + escape(document.get("user-agent")));
-            buffer.append("," + escape(document.get("content-type")));
-            buffer.append("," + escape(document.get("accept")));
-            buffer.append("," + escape(document.get("referer")));
-            buffer.append("," + escape(document.get("cookie")));
-            buffer.append("," + escape(document.get("origin")));
-            buffer.append("," + escape(document.get("accept-encoding")));
-            buffer.append("," + escape(document.get("accept-language")));
-            buffer.append("," + escape(document.get("upgrade-insecure-requests")));
-            buffer.append("\n");
-            requestWriter.write(buffer.toString());
+    private static void addDocument(String document) throws IOException {
+        if (document.length() == 0) {
+            return;
+        }
+        int location = document.indexOf("RequestId");
+        if (location == -1) {
+            return;
+        }
+        String requestId = document.substring(location + 10, location + 46);
+        Element element;
+        if (queue.size() > 800) {
+            for (int i = 0; i < 100; i++) {
+                String oldRequest = queue.poll();
+                writer.write(oldRequest + ',' + map.get(oldRequest).toString());
+                map.remove(oldRequest);
+            }
+        }
+
+        if (map.containsKey(requestId)) {
+            element = map.get(requestId);
         } else {
-            StringBuffer buffer = new StringBuffer();
-            buffer.append(escape(document.get("time")));
-            buffer.append("," + escape(document.get("requestId")));
-            buffer.append("," + escape(document.get("remote-ip-address")));
-            buffer.append("," + escape(document.get("remote-ip-chain-address")));
-            buffer.append("," + escape(document.get("Process interval")));
-            buffer.append("," + escape(document.get("HTTP Status Code")));
-            buffer.append("," + escape(document.get("x-marble-request-id")));
-            buffer.append("," + escape(document.get("Content-Type")));
-            buffer.append("," + escape(document.get("Content-Length")));
-            buffer.append("," + escape(document.get("Date")));
-            buffer.append("," + escape(document.get("Connection")));
-            buffer.append("," + escape(document.get("Cache-Control")));
-            buffer.append("," + escape(document.get("Set-Cookie")));
-            buffer.append("," + escape(document.get("Pragma")));
-            buffer.append("," + escape(document.get("Expires")));
-            buffer.append("\n");
-            responseWriter.write(buffer.toString());
+            element = new Element();
+            queue.offer(requestId);
         }
+        if (document.contains("Remote IP Address")) {
+            int index = document.indexOf("Remote IP Address");
+            element.setRemoteIpAddress(escapeValue(document.substring(index + 18, document.length() - 2)));
+        } else if (document.contains("Remote IP Chain Address")) {
+            int index2 = document.indexOf("Remote IP Chain Address");
+            element.setRemoteIpChainAddress(escapeValue(document.substring(index2 + 24, document.length() - 2)));
+        } else if (document.contains("Starts processing")) {
+            element.setReqTime(escapeValue(document.substring(1, 25)));
+            int index3 = document.indexOf("Starts processing");
+            int index4 = document.indexOf("\n");
+            String[] url = document.substring(index3 + 27, index4).split(" ");
+            element.setMethod(url[0]);
+            element.setPath(url[1]);
+            String[] pairs = document.split("\n");
+            for (int i = 1; i < pairs.length; i++) {
+                String[] pair = pairs[i].split(":");
+                if (pair.length < 2) {
+                    continue;
+                }
+                String key = escapeKey(pair[0]);
+                String value = escapeValue(pairs[i].substring(key.length() + 1));
+                try {
+                    switch (Enum.valueOf(Key.class, key)) {
+                        case remoteip:
+                            element.setRemoteIp(value);
+                            break;
+                        case host:
+                            element.setHost(value);
+                            break;
+                        case x_forwarded_for:
+                            element.setxForwardFor(value);
+                            break;
+                        case connection:
+                            element.setReqConnection(value);
+                            break;
+                        case content_length:
+                            element.setReqContentLength(value);
+                            break;
+                        case user_agent:
+                            element.setUserAgent(value);
+                            break;
+                        case content_type:
+                            element.setReqContentType(value);
+                            break;
+                        case accept:
+                            element.setAccept(value);
+                            break;
+                        case referer:
+                            element.setReferer(value);
+                            break;
+                        case cookie:
+                            element.setCookie(value);
+                            break;
+                        case origin:
+                            element.setOrigin(value);
+                            break;
+                        case accept_encoding:
+                            element.setAcceptEncoding(value);
+                            break;
+                        case accept_language:
+                            element.setAcceptLanguage(value);
+                            break;
+                        case upgrade_insecure_requests:
+                            element.setUpgradeInsecureRequests(value);
+                            break;
+                        case dnt:
+                            element.setDnt(value);
+                            break;
+                        case if_modified_since:
+                            element.setIfModifiedSince(value);
+                            break;
+                    }
+                } catch (IllegalArgumentException exception) {
+                    //ignore
+                    // System.out.println(requestId + " : " + exception.getMessage());
+                }
+            }
+        } else if (document.contains("Ends processing")) {
+            element.setRspTime(escapeValue(document.substring(1, 25)));
+            String[] pairs = document.split("\n");
+            for (int i = 1; i < pairs.length; i++) {
+                String[] pair = pairs[i].split(":");
+                if (pair.length < 2) {
+                    continue;
+                }
+                String key = escapeKey(pair[0]);
+                String value = escapeValue(pairs[i].substring(key.length() + 1));
+                try {
+                    switch (Enum.valueOf(Key.class, key)) {
+                        case Process_interval:
+                            element.setProcessInterval(value);
+                            break;
+                        case HTTP_Status_Code:
+                            element.setHttpStatusCode(value);
+                            break;
+                        case Content_Type:
+                            element.setRspContentType(value);
+                            break;
+                        case Content_Length:
+                            element.setRspContentLength(value);
+                            break;
+                        case x_marble_request_id:
+                            break;
+                        case Date:
+                            element.setDate(value);
+                            break;
+                        case Connection:
+                            element.setRspConnection(value);
+                            break;
+                        case Cache_Control:
+                            element.setCacheControl(value);
+                            break;
+                        case cache_control:
+                            element.setCacheControl(value);
+                            break;
+                        case Set_Cookie:
+                            element.setSetCookie(value);
+                            break;
+                        case Pragma:
+                            element.setPragma(value);
+                            break;
+                        case pragma:
+                            element.setPragma(value);
+                            break;
+                        case accept_charset:
+                            element.setAcceptCharset(value);
+                            break;
+                        case Expires:
+                            element.setExpires(value);
+                            break;
+                        case Last_Modified:
+                            element.setLastModified(value);
+                            break;
+                        case Location:
+                            element.setLocation(value);
+                    }
+                } catch (IllegalArgumentException exception) {
+                    // ignored
+                    // System.out.println(requestId + " : " + exception.getMessage());
+                }
+            }
+        } else {
+            return;
+        }
+        map.put(requestId, element);
     }
 
-    private static String escape(String src) {
-        if (src == null) {
+    private static String escapeKey(String key) {
+        if (key == null) {
             return "";
         }
-        return src.replace(",", "%2C");
+        return key.replace(" ", "_").replace("-", "_");
+    }
+
+    private static String escapeValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace(",", "%2C");
     }
 }
