@@ -19,8 +19,18 @@ public class PrepareData {
             System.err.println("File marble.log does not exist.");
             return;
         }
-        FileReader fileReader = new FileReader(log);
-        BufferedReader reader = new BufferedReader(fileReader);
+        FileInputStream fileInputStream = new FileInputStream(log);
+        StringBuilder buffer = new StringBuilder();
+        byte[] bytes = new byte[4096];
+        int length = 0;
+        try {
+            while (length != -1) {
+                buffer.append(new String(bytes, 0, length));
+                length = fileInputStream.read(bytes);
+            }
+        } finally {
+            fileInputStream.close();
+        }
         FileWriter fileWriter = new FileWriter(data);
         writer = new BufferedWriter(fileWriter);
         writer.write("request.id,req.time,method,path,remote.ip,host,x.forwarded.for,req.connection,req.content.length," +
@@ -29,36 +39,26 @@ public class PrepareData {
                              "rsp.time,process.interval,http.status.code,rsp.content.type,rsp.content.length,date," +
                              "rsp.connection,cache.control,set.cookie,accept.charset,pragma,expires,last.modified,location\n");
 
-        String temp = reader.readLine();
-        int attempts = 0;
+        String[] lines = buffer.toString().split("\n");
         StringBuffer document = new StringBuffer();
         try {
-            while (true) {
-                if (temp == null) {
-                    if (attempts > 10) {
-                        for (Map.Entry<String, Element> entry : map.entrySet()) {
-                            writer.write(entry.getKey() + ',' + entry.getValue().toString());
-                        }
-                        break;
-                    }
-                    temp = reader.readLine();
-                    attempts++;
+            for (String line : lines) {
+                if (line == null) {
                     continue;
                 }
-                attempts = 0;
-                if (temp.length() >= 11 && temp.substring(1, 11).matches("^(\\d{4})-(\\d{2})-(\\d{2})$")) {
+                if (line.length() >= 11 && line.substring(1, 11).matches("^(\\d{4})-(\\d{2})-(\\d{2})$")) {
                     addDocument(document.toString());
                     document = new StringBuffer();
                 }
-                document.append(temp + "\n");
-                temp = reader.readLine();
+                document.append(line + "\n");
+            }
+            for (Map.Entry<String, Element> entry : map.entrySet()) {
+                writer.write(entry.getKey() + ',' + entry.getValue().toString());
             }
         } finally {
             writer.flush();
             writer.close();
             fileWriter.close();
-            reader.close();
-            fileReader.close();
         }
     }
 
