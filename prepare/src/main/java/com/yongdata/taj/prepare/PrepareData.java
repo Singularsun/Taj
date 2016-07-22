@@ -97,8 +97,8 @@ public class PrepareData {
             int index3 = document.indexOf("Starts processing");
             int index4 = document.indexOf("\n");
             String[] url = document.substring(index3 + 27, index4).split(" ");
-            element.setMethod(url[0]);
-            element.setPath(url[1]);
+            element.setMethod(escapeValue(url[0]));
+            element.setPath(escapeValue(url[1]));
             String[] pairs = document.split("\n");
             for (int i = 1; i < pairs.length; i++) {
                 String[] pair = pairs[i].split(":");
