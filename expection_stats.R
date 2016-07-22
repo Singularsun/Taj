@@ -1,11 +1,12 @@
 library(plyr)
-expection_stats <-function(partition) {
-  merged_data <- read.csv('./output/merged_data.csv',header = TRUE, sep = ",")
-  expection_data <- merged_data[merged_data$http.status.code >= 300 | is.na(merged_data$http.status.code >= 300) , ]
+expection_stats <-function() {
+  prepared_data <- read.csv('./output/prepared_data.csv',header = TRUE, sep = ",")
+  expection_data <- prepared_data[prepared_data$http.status.code >= 300 | is.na(prepared_data$http.status.code >= 300) , ]
+  if(dim(expection_data)[1] == 0) {
+    return
+  }
   
-  expection_data$partition.day <- paste(substr(expection_data$time.x,start = 1, stop = 10), sep = "")
-  expection_data$partition.hour <- paste(substr(expection_data$time.x,start = 1, stop = 13), ":00", sep = "")
-  
+  partition <- expection_data$partition_day[1]
   expection.stats.day <- count(expection_data, c("partition.day","api","http.status.code"))
   expection.stats.day[,'granularity'] <- 'day'
   colnames(expection.stats.day) <- c("partition","api","code","count","granularity")
